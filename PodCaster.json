@@ -1,0 +1,536 @@
+{
+  "name": "PodCaster",
+  "nodes": [
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-pro",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-pro"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=</Referenced_Data>\n\n<Referenced_Data>\nPocast Link:{{ $json.Pod_link }}\nAudo Link:{{ $json.Pod_audio }}\nPodcast Name:{{ $json.Pod_creator }}\nTopic: {{ $json.Pod_title }}\nContent:{{ $json.pod_content }}\nDate: {{ $json.pubDate }}\n\n</Referenced_Data>\n\n\n\nInstructions:\n1. Review the Referenced Data, including the full transcript. If no transcript is available, transcribe the audio file \n2. Infer the podcast topic, date (if not provided), guest name, title, and company from the title, content, and transcript if not explicitly stated.\n3. Generate a report in well-formatted HTML (use <html>, <body>, <h1>, <h2>, <p>, <ul>, etc. for structure). The report must contain exactly:\n   - Podcast Name - Topic - Date (in a single <h2> header, e.g., \"Podcast Name: My Podcast - Topic: AI Ethics - Date: 2025-09-26\")\n   - Guest Name, Title, Company (in a <p> paragraph)\n   - Summary of Podcast (3-4 lines max, in a <p> paragraph)\n   - 3 bullets that best highlight the guest's main points, critical statements, and strongest points of view (in a <ul> list)\n   -1 brief, conversational question (under 20 words) you'd casually ask the guest - something that shows genuine curiosity but sounds natural and spontaneous, not like a formal interview question (in a <p> paragraph, prefixed with \"Question: \")\n"
+            }
+          ]
+        },
+        "simplify": false,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        -16,
+        -16
+      ],
+      "id": "9099bc87-577a-44ca-93d1-d693ed90160f",
+      "name": "Message a model1",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "yz7JlFmgeWFe1wby",
+          "name": "Google Gemini(PaLM) Api account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "bretfeig@outlook.com",
+        "subject": "=[AUTO-POD] {{$json.candidates[0].content.parts[0].text.match(/<h2\\b[^>]*>(.*?)<\\/h2>/i)[1] }}",
+        "message": "={{$json.candidates[0].content.parts[0].text.match(/<html[^>]*>[\\s\\S]*?<\\/html>/i);return match ? match[0] : ''; }}\n\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        336,
+        -16
+      ],
+      "id": "d7fc0f80-855b-4d5e-8e1b-293358026ed3",
+      "name": "Send a message",
+      "webhookId": "fcbe0446-93ff-412f-b8e4-4292152d0126",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "o7sBFPzV9EJD0Rga",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-pro",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-pro"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=</Referenced_Data>\n\n<Referenced_Data>\nPocast Link:{{ $json.Pod_link }}\nAudo Link:{{ $json.Pod_audio }}\nPodcast Name:{{ $json.Pod_creator }}\nTopic: {{ $json.Pod_title }}\nContent:{{ $json.pod_content }}\nDate: {{ $json.Pod_date }}\nPod_Cast_Alt Name: {{ $json[\"content:encoded\"].match(/\\b(\\w+\\s+\\w+\\s+podcast)\\b/i)[1] }}\n</Referenced_Data>\n\n\n\nInstructions:\n1. Review the Referenced Data, including the full transcript. If no transcript is available, transcribe the audio file \n2. Return a JSON Object with the follow fields {\n\n Poscast Name:\n Podcast Link:\n Podcast: Audio Link\n Podcast Transcript Link:  (if exists)\n Topic:\n Date:\n Guest Name:\n Guest Title\n Guest Company:\n Bullet 1\n Bullet 2\n Bullet 3\n Question 1:  }\n Podcast Summary\n\nRe: Bullet 1-3 {\n\n    3 (Three) bullets that best highlights the guests main points, critical statements and strongest POV}\n   \nRe: Question 1 {\n\n  1 intelligent question I could ask the guest, based on the podcast,  to spark a conversation.  Short sunccinct}\n\n****\nreturn only the JSON object.  DO NOT INCLUDE any surrounding text, explanations, or markdown formatting (e.g., no ```json or backticks).  Example output: {   \"Podcast Name\": \"Founder Diaries\",   \"Podcast Link\": \"https://example.com/podcast\",   \"Podcast Audio Link\": \"https://example.com/audio.mp3\",   \"Podcast Transcript Link\": null,   \"Topic\": \"Career Development\",   \"Date\": \"2025-09-24\",   \"Guest Name\": \"John (@prof_mims)\",   \"Guest Title\": \"Entrepreneur\"}\n"
+            }
+          ]
+        },
+        "simplify": false,
+        "jsonOutput": true,
+        "options": {
+          "codeExecution": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        -16,
+        176
+      ],
+      "id": "392397a0-7cc6-44c3-921c-879ba67c440b",
+      "name": "Message a model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "yz7JlFmgeWFe1wby",
+          "name": "Google Gemini(PaLM) Api account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://hooks.zapier.com/hooks/catch/1987670/u1qlglq",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        560,
+        176
+      ],
+      "id": "1e566eda-ee15-43be-84ea-70766986313f",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Access the 'text' field from the LLM output\nlet rawOutput =$input.first().json.candidates[0].content.parts[0].text; // Adjust this path based on your LLM node's output structure\n\n// If the output is a string, parse it\nif (typeof rawOutput === 'string') {\n  try {\n    // Parse the string into a JSON object\n    return JSON.parse(rawOutput);\n  } catch (error) {\n    throw new Error('Failed to parse JSON: ' + error.message);\n  }\n}\nreturn rawOutput; // Return the JSON object if it's already parsed"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        336,
+        176
+      ],
+      "id": "1405bc16-8992-46b6-b7cc-16fa4f58be6d",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {}
+          ]
+        },
+        "feedUrl": "https://anchor.fm/s/d8d1ab90/podcast/rss"
+      },
+      "type": "n8n-nodes-base.rssFeedReadTrigger",
+      "typeVersion": 1,
+      "position": [
+        -464,
+        176
+      ],
+      "id": "21c47cb5-f43c-46e0-ae51-4b137f6f3410",
+      "name": "RecTalk"
+    },
+    {
+      "parameters": {
+        "keys": {
+          "key": [
+            {
+              "currentKey": "title",
+              "newKey": "Pod_title"
+            },
+            {
+              "currentKey": "link",
+              "newKey": "=Pod_link"
+            },
+            {
+              "currentKey": "enclosure.url",
+              "newKey": "Pod_audio"
+            },
+            {
+              "currentKey": "creator",
+              "newKey": "Pod_creator"
+            },
+            {
+              "currentKey": "itunes.author",
+              "newKey": "Pod_creator"
+            },
+            {
+              "currentKey": "content",
+              "newKey": "pod_content"
+            },
+            {
+              "currentKey": "pubDate",
+              "newKey": "Pod_date"
+            }
+          ]
+        },
+        "additionalOptions": {}
+      },
+      "type": "n8n-nodes-base.renameKeys",
+      "typeVersion": 1,
+      "position": [
+        -240,
+        80
+      ],
+      "id": "65dbb4d4-4c91-4da0-8bd0-920eca816926",
+      "name": "Rename Keys"
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {}
+          ]
+        },
+        "feedUrl": "https://feed.podbean.com/recruitingbrainfood/feed.xml"
+      },
+      "type": "n8n-nodes-base.rssFeedReadTrigger",
+      "typeVersion": 1,
+      "position": [
+        -464,
+        -16
+      ],
+      "id": "5b264544-8dfa-4ee9-93bb-36e730900132",
+      "name": "Recruiting Brainfood"
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {}
+          ]
+        },
+        "feedUrl": "https://cxr.works/feed/podcast/"
+      },
+      "type": "n8n-nodes-base.rssFeedReadTrigger",
+      "typeVersion": 1,
+      "position": [
+        -464,
+        368
+      ],
+      "id": "d4599c74-88a7-4503-b00a-c567bfaec3db",
+      "name": "CRX - Recruiting Community"
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {}
+          ]
+        },
+        "feedUrl": "https://feeds.megaphone.fm/recruitingfuture"
+      },
+      "type": "n8n-nodes-base.rssFeedReadTrigger",
+      "typeVersion": 1,
+      "position": [
+        -464,
+        -208
+      ],
+      "id": "dc1139a5-2dc1-4ddd-a502-9af02ff6bc74",
+      "name": "Recruiting Futures"
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {}
+          ]
+        },
+        "feedUrl": "https://feed.pod.co/the-elite-recruiter-podcast"
+      },
+      "type": "n8n-nodes-base.rssFeedReadTrigger",
+      "typeVersion": 1,
+      "position": [
+        -464,
+        -400
+      ],
+      "id": "fbc627c4-ab2a-43ef-a9c1-00ed2d864bba",
+      "name": "Elite Recruiter"
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {}
+          ]
+        },
+        "feedUrl": "https://anchor.fm/s/bbe557c/podcast/rss"
+      },
+      "type": "n8n-nodes-base.rssFeedReadTrigger",
+      "typeVersion": 1,
+      "position": [
+        -464,
+        560
+      ],
+      "id": "99eef7f5-506a-49de-ac94-c4a731a8d377",
+      "name": "Inside Talent"
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {}
+          ]
+        },
+        "feedUrl": "https://feeds.megaphone.fm/chadcheese"
+      },
+      "type": "n8n-nodes-base.rssFeedReadTrigger",
+      "typeVersion": 1,
+      "position": [
+        -464,
+        704
+      ],
+      "id": "d132caa6-0f6a-46db-8fc6-eee33347002d",
+      "name": "Chad & Cheese"
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {}
+          ]
+        },
+        "feedUrl": "https://feeds.megaphone.fm/thehumancapitalist"
+      },
+      "type": "n8n-nodes-base.rssFeedReadTrigger",
+      "typeVersion": 1,
+      "position": [
+        -480,
+        848
+      ],
+      "id": "b3791a91-7ef0-4173-a2f0-013277d6d8ee",
+      "name": "The Human Capitalist"
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {}
+          ]
+        },
+        "feedUrl": "https://feeds.libsyn.com/106872/rss"
+      },
+      "type": "n8n-nodes-base.rssFeedReadTrigger",
+      "typeVersion": 1,
+      "position": [
+        -544,
+        -576
+      ],
+      "id": "3796f80b-9df8-4a30-984e-a1e5d284b7a4",
+      "name": "Talk to Me"
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {}
+          ]
+        },
+        "feedUrl": "https://rss.art19.com/hr-leaders-podcast"
+      },
+      "type": "n8n-nodes-base.rssFeedReadTrigger",
+      "typeVersion": 1,
+      "position": [
+        -576,
+        -704
+      ],
+      "id": "d0855ba4-e7ca-4eb5-b1d4-3ac5cc33779e",
+      "name": "HR Leaders Podcast"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Message a model1": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a message": {
+      "main": [
+        []
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        []
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RecTalk": {
+      "main": [
+        [
+          {
+            "node": "Rename Keys",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rename Keys": {
+      "main": [
+        [
+          {
+            "node": "Message a model1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recruiting Brainfood": {
+      "main": [
+        [
+          {
+            "node": "Rename Keys",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CRX - Recruiting Community": {
+      "main": [
+        [
+          {
+            "node": "Rename Keys",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recruiting Futures": {
+      "main": [
+        [
+          {
+            "node": "Rename Keys",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Elite Recruiter": {
+      "main": [
+        [
+          {
+            "node": "Rename Keys",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inside Talent": {
+      "main": [
+        [
+          {
+            "node": "Rename Keys",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chad & Cheese": {
+      "main": [
+        [
+          {
+            "node": "Rename Keys",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "The Human Capitalist": {
+      "main": [
+        [
+          {
+            "node": "Rename Keys",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Talk to Me": {
+      "main": [
+        [
+          {
+            "node": "Rename Keys",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HR Leaders Podcast": {
+      "main": [
+        [
+          {
+            "node": "Rename Keys",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "fefcdfe8-dafc-4c6a-88e4-d415e9bbd313",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "6ff0113c3e17bbbe3b5a458e6fc7906b4dd037572471dfd3c16a0120dbeb1704"
+  },
+  "id": "EnEsWXNH6d9XJYwR",
+  "tags": []
+}
