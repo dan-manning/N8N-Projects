@@ -1,0 +1,361 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 12
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -800,
+        -112
+      ],
+      "id": "7e865eaa-9663-47c4-a7e9-1fbe3b03f23b",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1dTCqJ6ec22gYC1HHFU7-zp4dc5hlt-x0Eof_crWLQ8k",
+          "mode": "list",
+          "cachedResultName": "n8n Networking Exercise",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1dTCqJ6ec22gYC1HHFU7-zp4dc5hlt-x0Eof_crWLQ8k/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1dTCqJ6ec22gYC1HHFU7-zp4dc5hlt-x0Eof_crWLQ8k/edit#gid=0"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -592,
+        -112
+      ],
+      "id": "75c4bd1e-aa58-4632-8a7f-cb0f99534e92",
+      "name": "Fetch Contact Data",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "KAv48oBerP9pQGSO",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "filters": {
+          "receivedAfter": "={{ new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString() }}",
+          "sender": "={{ $json.Email }}"
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        -384,
+        -112
+      ],
+      "id": "7fe6123a-c273-47fd-b869-9f3aaf02700a",
+      "name": "Lookup Contact Emails",
+      "webhookId": "02d2dd50-1422-4096-b0e8-9fd65aa6c6cb",
+      "executeOnce": false,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "L4MYZIJKd2fmInSi",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "/**\n * Format Email Content for OpenAI\n * - Builds contact map from Sheets node \"Fetch Contact Data\" or $flow cache\n * - Normalizes Gmail items to digest-friendly objects\n * - Always returns an array of { json: ... }\n */\n\nfunction extractEmail(input) {\n  if (!input) return '';\n  const s = String(input);\n  const m = s.match(/<([^>]+)>/);\n  const raw = m ? m[1] : s;\n  return raw.trim().toLowerCase();\n}\nfunction extractDisplayName(fromRaw) {\n  if (!fromRaw) return '';\n  let s = String(fromRaw);\n  s = s.replace(/<[^>]+>/g, '').trim();\n  s = s.replace(/^\"+|\"+$/g, '').trim();\n  return s;\n}\nfunction isGeneric(name) {\n  const n = (name || '').toLowerCase();\n  return /\\b(no[-\\s]?reply|support|helpdesk|help|info|sales|team|notifications?|noreply|do[-\\s]?not[-\\s]?reply)\\b/.test(n);\n}\nfunction nameFromEmail(email) {\n  if (!email) return '';\n  const local = email.split('@')[0];\n  const parts = local.split(/[._+\\-]/).filter(Boolean);\n  const filtered = parts.filter(p => !/^(no|reply|noreply|do|not|mail|info|support|team|sales|help|service|admin)$/i.test(p));\n  const chosen = (filtered.length ? filtered : parts).slice(0, 2);\n  return chosen.map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');\n}\nfunction firstName(full) {\n  return (String(full || '').trim().split(/\\s+/)[0] || '');\n}\nfunction stripHtml(html) {\n  return String(html || '')\n    .replace(/<style[\\s\\S]*?<\\/style>/gi, ' ')\n    .replace(/<script[\\s\\S]*?<\\/script>/gi, ' ')\n    .replace(/<[^>]+>/g, ' ')\n    .replace(/&nbsp;/g, ' ')\n    .replace(/\\s+/g, ' ')\n    .trim();\n}\nfunction findHeader(headers = [], name = '') {\n  const h = headers.find(x => (x.name || '').toLowerCase() === name.toLowerCase());\n  return h ? h.value : undefined;\n}\n\n// ---------- Build contact map (robust) ----------\nlet contactMap = {};\ntry {\n  // 1) Preferred: read from the actual Sheets node in THIS execution\n  let sheetItems = [];\n  try {\n    // IMPORTANT: name must match the label on your canvas\n    sheetItems = $items(\"Fetch Contact Data\", 0) || [];\n  } catch (_) {\n    sheetItems = [];\n  }\n  for (const it of sheetItems) {\n    const row = it?.json || {};\n    const email = String(row.Email || row[\"Email Address\"] || \"\").toLowerCase().trim();\n    const rn = (row.row_number ?? row._row ?? null);\n    const sheetName = (row[\"Contact Name\"] || row[\"Name\"] || \"\").toString().trim();\n    if (email && rn != null) {\n      contactMap[email] = { row_number: rn, sheetName };\n    }\n  }\n\n  // 2) Fallback: if nothing found (e.g., node wasn’t executed), try a cached map\n  if (Object.keys(contactMap).length === 0) {\n    const cached = $flow.get('contactMap');\n    if (cached && typeof cached === 'object') {\n      contactMap = cached;\n    }\n  }\n} catch (e) {\n  // Never throw—just keep an empty map so we still return items\n  contactMap = {};\n}\n\n// ---------- Normalize incoming Gmail items ----------\nconst inputItems = $input.all() || [];\nconst out = [];\n\nfor (const item of inputItems) {\n  const j = item?.json || {};\n\n  const headers = (j.payload && j.payload.headers) || [];\n  const fromRaw  = j.From || j.from || (j.headers && j.headers.from) || findHeader(headers, 'From');\n  const subject  = j.Subject || j.subject || (j.headers && j.headers.subject) || findHeader(headers, 'Subject') || '';\n\n  // Body: prefer text/plain; else strip HTML; else snippet\n  let text = j.text || j.body || j.plainText || '';\n  const html = j.html || j.bodyHtml || null;\n  if (!text || !text.trim()) {\n    if (html) text = stripHtml(html);\n    else if (j.snippet) text = j.snippet;\n  }\n  if (text.length > 8000) text = text.slice(0, 8000);\n\n  // Date → ISO (prefer internalDate if present)\n  const dateRaw = j.internalDate || j.date || findHeader(headers, 'Date') || Date.now();\n  const ms = /^\\d{13}$/.test(String(dateRaw)) ? Number(dateRaw) : Date.parse(String(dateRaw));\n  const dateISO = new Date(isNaN(ms) ? Date.now() : ms).toISOString();\n\n  const fromEmail = extractEmail(fromRaw);\n  const mapHit = fromEmail ? contactMap[fromEmail] : null;\n  const row_number = mapHit ? mapHit.row_number : null;\n\n  // Name resolution: Sheet → display name → derived from email\n  let nameCandidate =\n    (mapHit && mapHit.sheetName && !isGeneric(mapHit.sheetName)) ? mapHit.sheetName :\n    (extractDisplayName(fromRaw) && !isGeneric(extractDisplayName(fromRaw))) ? extractDisplayName(fromRaw) :\n    nameFromEmail(fromEmail);\n\n  nameCandidate = (nameCandidate || '').trim();\n  const contactName = nameCandidate;\n  const contactFirstName = firstName(contactName);\n\n  out.push({\n    json: {\n      fromEmail,\n      subject,\n      dateISO,\n      text,\n      contactName,\n      contactFirstName,\n      row_number,                              // ← will now be set when the email matches a row\n      threadId: j.threadId || j.thread || null,\n      messageId: j.id || j.messageId || null\n    }\n  });\n}\n\n// Always return an array (even if empty) so n8n is happy\nreturn Array.isArray(out) ? out : [];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -176,
+        -112
+      ],
+      "id": "d0d0a366-8098-4140-b3e4-eb701e063a56",
+      "name": "Format For OpenAI"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "chatgpt-4o-latest",
+          "mode": "list",
+          "cachedResultName": "CHATGPT-4O-LATEST"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=You are an expert networking coach who leverages Cultivated Culture and Austin Belcak's networking philosophies. You share concise, specific, and actionable networking advice while using a friendly, upbeat, and casual tone. Always return strict JSON matching the schema."
+            },
+            {
+              "content": "=You will be given metadata and the plain-text body of an email from a networking contact.\n\nAnalyze the information from the email in the context of working to build a relationship with the contact that can eventually turn into a job referral. Leverage Cultivated Culture and Austin Belcak's networking philosophies and strategies when analyzing and making recommendations.\n\nNext, produce:\n\n1. A concise summary of the email contents (~1–3 sentences) which can easily be scanned without sacrificing important details\n2. One or two actionable next steps that aim to keep momentum going with building the relationship by adding concrete value to the other contact \n3. Recommended follow-up date that's proportional to the email context while keeping momentum going. (E.g. if the email has a question that's easy to answer, or is easy to reply to, the follow up date should be one day. But if the email is making a larger ask, or context dictates a longer window - contact traveling, the ask requires more work, etc -- then set a longer follow up date) \n\nContext:\n- Contact name: {{ $json.contactFirstName }}\n- Contact email: {{ $json.fromEmail }}\n- Message subject: {{ $json.subject }}\n- Message date (ISO): {{ $json.dateISO }}\n- Message text (plain): \"\"\"{{ $json.text }}\"\"\"\n- Row number: {{ $json.row_number }}\n\nRules:\n- “summary”: 1–2 sentences that capture what they said/asked/confirmed and any important details.\n- “next_steps”: 1-2 sentences. Be specific (who, what, how, include templates if helpful).\n- “follow_up_date”: ISO 8601 date string (YYYY-MM-DD). Default to 7 days after message date unless:\n    • If the email contains time-sensitive language (e.g., “this week”, “urgent”, “deadline”, “ASAP”, “timeline”), choose 1 day after message date.\n    • If the email is quick and easy to respond to (e.g. is a quick conversational email, or asks a question that can be replied to easily) choose 1 day after the message date\n    • If the email makes an ask for or requires longer lead time (e.g. recommending you read a book, take a course, attend an event a week from now, etc) choose a date that allows for enough time to complete that task.\n    • If the email indicates they’re out of office or not ready yet, choose a date that aligns with the time they are back or default to 10-14 days\n    • Never pick a weekend; if result falls on Sat/Sun, move to the next Monday.\n- Include \"row_number\" in the output\n\nTone:\n- Be friendly, casual, and upbeat\n- Use names whenever possible (avoid language like \"sender\" or \"recipient\")\n\nReturn JSON exactly in this schema:\n\n{\n  \"summary\": \"string\",\n  \"next_steps\": [\"string\", \"string\", \"string\"],\n  \"follow_up_date\": \"YYYY-MM-DD\"\n}\n"
+            }
+          ]
+        },
+        "jsonOutput": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        16,
+        -112
+      ],
+      "id": "b2426789-a7ab-4aaa-b5c2-4b36bf847205",
+      "name": "Generate Networking Summary & Next Steps",
+      "credentials": {
+        "openAiApi": {
+          "id": "U5ceFULFU0jYil1D",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "/**\n * Format For Google Sheet (Pretty Date version)\n * - Pulls `dateISO` + `row_number` from \"Format Email Content\" (preferred)\n *   with fallback to any normalize nodes if present.\n * - Shapes model output for Google Sheets.\n */\n\nfunction bumpWeekendToMonday(d) {\n  const day = d.getUTCDay(); // Sun=0 ... Sat=6\n  if (day === 6) d.setUTCDate(d.getUTCDate() + 2); // Sat->Mon\n  if (day === 0) d.setUTCDate(d.getUTCDate() + 1); // Sun->Mon\n  return d;\n}\nfunction ordinal(n) {\n  const s = [\"th\",\"st\",\"nd\",\"rd\"];\n  const v = n % 100;\n  return s[(v - 20) % 10] || s[v] || s[0];\n}\nfunction pretty(d) {\n  const months = [\"January\",\"February\",\"March\",\"April\",\"May\",\"June\",\n                  \"July\",\"August\",\"September\",\"October\",\"November\",\"December\"];\n  const day = d.getUTCDate();\n  return `${months[d.getUTCMonth()]} ${day}${ordinal(day)}`;\n}\n\n// Pull fields from upstream regardless of node naming\nfunction getFromNormalize(i) {\n  const tryNames = [\n    \"Format Email Content\",            // <-- preferred source for dateISO + row_number\n    \"Normalize For Prompt\",\n    \"Skip Promotions & Unknowns\",\n    \"Normalize Email\"\n  ];\n  for (const name of tryNames) {\n    try {\n      const it = $item(i, name);\n      if (it && it.json) return it.json;\n    } catch (_) {}\n  }\n  return {};\n}\n\nconst inputItems = $input.all();\nconst out = [];\n\nfor (let i = 0; i < inputItems.length; i++) {\n  const j = inputItems[i].json;\n  const content = j?.message?.content ?? j?.content ?? null;\n\n  // dateISO + row_number (prefer Format Email Content)\n  const norm = getFromNormalize(i);\n  const emailISO   = norm.dateISO    || new Date().toISOString();\n  const row_number = norm.row_number ?? null;\n\n  const emailDate = new Date(emailISO);\n\n  // ---- Extract model outputs ----\n  let summary = \"\";\n  let nextSteps = [];\n  let followUpDateStr = \"\";\n\n  if (content && typeof content === \"object\") {\n    summary = (content.summary || \"\").trim();\n    nextSteps = Array.isArray(content.next_steps) ? content.next_steps : [];\n    followUpDateStr = (content.follow_up_date || \"\").trim();\n  } else if (typeof content === \"string\") {\n    try {\n      const parsed = JSON.parse(content);\n      summary = (parsed.summary || \"\").trim();\n      nextSteps = Array.isArray(parsed.next_steps) ? parsed.next_steps : [];\n      followUpDateStr = (parsed.follow_up_date || \"\").trim();\n    } catch {}\n  }\n\n  // ---- Sanitize next steps ----\n  nextSteps = nextSteps\n    .filter(s => typeof s === \"string\" && s.trim())\n    .map(s => s.trim())\n    .slice(0, 6);\n\n  // ---- Compute follow-up date with weekend bump & default ----\n  let followUp = null;\n  if (followUpDateStr) {\n    const d = new Date(followUpDateStr);\n    if (!isNaN(d.getTime())) followUp = d;\n  }\n  if (!followUp) {\n    followUp = new Date(emailDate.getTime());\n    followUp.setUTCDate(followUp.getUTCDate() + 7);\n  }\n  followUp = bumpWeekendToMonday(followUp);\n\n  // ---- Final fields ----\n  const nextStepsText = nextSteps.join(\" • \");\n  const nextStepsTextLines = nextSteps.join(\"\\n\");\n  const dateOfLastContact = pretty(emailDate);\n  const followUpDate = pretty(followUp);\n\n  out.push({\n    json: {\n      summary,\n      nextSteps,\n      nextStepsText,\n      nextStepsTextLines,\n      followUpDate,            // e.g., \"October 17th\"\n      status: \"Active\",\n      emailISO,                // raw ISO kept for reference\n      dateOfLastContact,       // e.g., \"October 10th\"\n      row_number               // <- used by Google Sheets update\n    }\n  });\n}\n\nreturn out;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        320,
+        -112
+      ],
+      "id": "fcf5531e-d964-4506-8aad-64941da24453",
+      "name": "Format For Google Sheet"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1eJIy7yUi9JARKps66uquuyiITqeec7sUlJ75QshDT1A",
+          "mode": "list",
+          "cachedResultName": "Austin's Networking Tracker",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1eJIy7yUi9JARKps66uquuyiITqeec7sUlJ75QshDT1A/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Contact Tracker",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1eJIy7yUi9JARKps66uquuyiITqeec7sUlJ75QshDT1A/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "row_number": "={{ $('Generate Networking Summary & Next Steps').item.json.message.content.row_number }}",
+            "Summary Of Last Convo": "={{ $json.summary }}",
+            "Next Steps": "={{ $json.nextSteps }}",
+            "Follow Up Date": "={{ $json.followUpDate }}",
+            "Date Of Last Contact": "={{ $json.dateOfLastContact }}",
+            "Status": "={{ $json.status }}"
+          },
+          "matchingColumns": [
+            "row_number"
+          ],
+          "schema": [
+            {
+              "id": "Contact Name",
+              "displayName": "Contact Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Job Title",
+              "displayName": "Job Title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Company",
+              "displayName": "Company",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Date Of Last Contact",
+              "displayName": "Date Of Last Contact",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Summary Of Last Convo",
+              "displayName": "Summary Of Last Convo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Next Steps",
+              "displayName": "Next Steps",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Follow Up Date",
+              "displayName": "Follow Up Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        528,
+        -112
+      ],
+      "id": "0b5e6c59-203d-44d5-85ff-c580cfacb53c",
+      "name": "Push To Google Sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "KAv48oBerP9pQGSO",
+          "name": "Google Sheets account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Contact Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Contact Data": {
+      "main": [
+        [
+          {
+            "node": "Lookup Contact Emails",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lookup Contact Emails": {
+      "main": [
+        [
+          {
+            "node": "Format For OpenAI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format For OpenAI": {
+      "main": [
+        [
+          {
+            "node": "Generate Networking Summary & Next Steps",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Networking Summary & Next Steps": {
+      "main": [
+        [
+          {
+            "node": "Format For Google Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format For Google Sheet": {
+      "main": [
+        [
+          {
+            "node": "Push To Google Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "1e561e0ba3757a6da21a348df6009036298805f8d1e30289caf9ac7ae68a63e5"
+  }
+}
