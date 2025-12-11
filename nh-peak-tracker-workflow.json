@@ -1,0 +1,103 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "content": "JSON input needs Webhook to trigger N8N workflow\n",
+        "height": 192
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -1376,
+        208
+      ],
+      "typeVersion": 1,
+      "id": "17b30cda-2a5c-44bc-9eca-f6ae5697f59d",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "Match JSON data with standard list of 48 4000 footer mountains",
+        "height": 192
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -1104,
+        208
+      ],
+      "typeVersion": 1,
+      "id": "74efef67-f483-40ed-98c0-5055304dd3c4",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "content": "If JSON data has all 48 4000 foot mountains completed. ",
+        "height": 144
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -832,
+        448
+      ],
+      "typeVersion": 1,
+      "id": "e97a9003-8ff3-4d89-a4b8-6b798efcc9d9",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "content": "Create a Completion Certificate"
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -544,
+        448
+      ],
+      "typeVersion": 1,
+      "id": "af654d74-6072-4937-b68c-14f6f2caa66c",
+      "name": "Sticky Note3"
+    },
+    {
+      "parameters": {
+        "content": "Send an email to congratulate the hiker for accomplishing the hiking achievement. "
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -256,
+        448
+      ],
+      "typeVersion": 1,
+      "id": "fca41566-b197-4f4f-9e0a-80d4231ad3d1",
+      "name": "Sticky Note4"
+    },
+    {
+      "parameters": {
+        "content": "If JSON data does not have every one of the 48 4000 footers complete.  "
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -832,
+        96
+      ],
+      "typeVersion": 1,
+      "id": "1479a604-65aa-4e1f-b4c0-238140a998d3",
+      "name": "Sticky Note5"
+    },
+    {
+      "parameters": {
+        "content": "Send message / email to user indicating a list of which mountains are remaining on the list. "
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -560,
+        96
+      ],
+      "typeVersion": 1,
+      "id": "c74094bb-2079-42bf-8847-b10b51b9f6ef",
+      "name": "Sticky Note6"
+    }
+  ],
+  "connections": {},
+  "pinData": {},
+  "meta": {
+    "instanceId": "1e561e0ba3757a6da21a348df6009036298805f8d1e30289caf9ac7ae68a63e5"
+  }
+}
